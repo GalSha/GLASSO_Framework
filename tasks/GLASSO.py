@@ -25,13 +25,13 @@ class GLASSO(base_problem):
             import cupy as cp
             self.cp = cp
 
-        self.gista_T = gista_T
+        self.gista_T = np.maximum(gista_T, 10*algo.T)
         if self.gista_T is not None and self.gista_T > 0:
             if self.cuda:
                 from algos.GLASSO.cuda_GISTA import cuda_GISTA as GISTA
             else:
                 from algos.GLASSO.GISTA import GISTA
-            self.gista = GISTA(T=self.gista_T, lam=self.lam, N=self.N, ls_iter=15, step_lim=1e-5)
+            self.gista = GISTA(T=self.gista_T, lam=self.lam, N=self.N, ls_iter=15, step_lim=1e-4)
         else:
             self.gista = None
 
@@ -72,7 +72,7 @@ class GLASSO(base_problem):
             self.As_hist = []
 
         if self.gista is not None:
-            self.gista_As = [self.gista(S) for S in self.Ss]
+            self.gista_As = [self.gista(S, 1) for S in self.Ss]
         else:
             self.gista_As = [None for _ in self.Ss]
 
@@ -90,11 +90,12 @@ class GLASSO(base_problem):
                 glasso_status = create_glasso_status(S, self.lam, gista_A)
             else:
                 glasso_status = cuda_create_glasso_status(self.cp, S, self.lam, gista_A)
+            M = np.sign(np.abs(gista_A, dtype='float32')).astype('int8')
             if self.hist:
-                _, status, As = self.algo.compute_full(S, glasso_status)
+                _, status, As = self.algo.compute_full(S, M, glasso_status)
                 self.As_hist.append(As)
             else:
-                _, status = self.algo.compute_status(S, glasso_status)
+                _, status = self.algo.compute_status(S, M, glasso_status)
             gap_A, loss_A, nnz_A, grad_A, step_A, cond_A, gista_nmse_A = list(zip(*status))
             if self.cuda:
                 gap_A = self.cp.asnumpy(self.cp.array(gap_A))
@@ -149,6 +150,7 @@ class GLASSO(base_problem):
     def init_test(self,seed,tbs,db,hist,timer):
         self.timer = timer
         self.test_check_f = TEST_CHECK(self.epsilon_tol,self.test_mode,self.timer,self.cuda)
+        test_check_gista = TEST_CHECK(self.epsilon_tol ** 3,self.test_mode,self.timer,self.cuda)
         self.hist = hist
         if self.sig is None:
             sig = None
@@ -170,7 +172,22 @@ class GLASSO(base_problem):
             self.As_hist = []
 
         if self.gista is not None:
-            self.gista_As = [self.gista(S) for S in self.Ss]
+            self.gista_As = []
+            for i in range(len(self.Ss)):
+                S = self.Ss[i]
+                Sig = self.Sigs[i]
+                test_check_gista.set_true_A(Sig)
+                if not self.cuda:
+                    glasso_status = create_glasso_status(S, self.lam, None)
+                    test_check_gista.set_min_loss(glasso_status(Sig, 0.0)[1])
+                else:
+                    glasso_status = cuda_create_glasso_status(self.cp, S, self.lam, None)
+                    test_check_gista.set_min_loss(glasso_status(self.cp.array(Sig), 0.0)[1])
+                gista_test_output = self.gista.compute_test(S, 1, test_check_gista)
+                if gista_test_output[1] >= self.gista.T:
+                    print("Warning: GISTA for mask creation didn't reached the stop criteria!")
+                print("INFO: Index = {i} | GISTA for mask creation needed {iter} iterations".format(i=i, iter=gista_test_output[1]))
+                self.gista_As += [gista_test_output[0]]
         else:
             self.gista_As = [None for _ in self.Ss]
 
@@ -191,12 +208,13 @@ class GLASSO(base_problem):
             S = self.Ss[i]
             Sig = self.Sigs[i]
             gista_A = self.gista_As[i]
+            M = np.sign(np.abs(gista_A, dtype='float32')).astype('int8')
             if not self.cuda:
                 glasso_status = create_glasso_status(S, self.lam, gista_A)
             else:
                 glasso_status = cuda_create_glasso_status(self.cp, S, self.lam, gista_A)
             import time
-            self.algo.compute_warmup(S)
+            self.algo.compute_warmup(S, M)
             self.test_check_f.set_true_A(Sig)
             if not self.cuda:
                 self.test_check_f.set_min_loss(glasso_status(Sig, 0.0)[1])
@@ -204,7 +222,7 @@ class GLASSO(base_problem):
                 self.test_check_f.set_min_loss(glasso_status(self.cp.array(Sig), 0.0)[1])
             self.test_check_f.reset_total_time()
             start_t = time.time()
-            A, iter_A = self.algo.compute_test(S, self.test_check_f)
+            A, iter_A = self.algo.compute_test(S, M, self.test_check_f)
             test_t = time.time()
             elapsed = test_t - start_t - self.test_check_f.get_total_time()
             if self.hist:

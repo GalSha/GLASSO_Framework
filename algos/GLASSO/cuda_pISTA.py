@@ -13,14 +13,15 @@ class cuda_pISTA(base):
         self.save_name = "cuda_pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
             .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         import cupy as cp
         import cupyx as cpx
         import cupyx.scipy.sparse as cp_sp
         import cupyx.scipy.sparse.linalg as cp_spl
         cpx.seterr(linalg='raise')
         init_step = cp.float32(self.init_step)
-        S = cp.array(S)
+        S = cp.array(S, dtype='float32')
+        M = cp.array(M, dtype='int8')
         As = []
         status = []
         cp_step_lim = cp.float32(self.step_lim)
@@ -35,6 +36,7 @@ class cuda_pISTA(base):
             A_diag = None
         else:
             A = cp.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(cp.asnumpy(A))
@@ -51,9 +53,7 @@ class cuda_pISTA(base):
             mask_A = cp.abs(sign_A, dtype='int8')
             G = S - A_inv
             sign_soft_G = cp.sign(cp_soft_threshold(cp, G, lam),dtype='float32')
-            mask_G = cp.abs(sign_soft_G,dtype='int8')
-            mask = cp.bitwise_or(mask_A, mask_G)
-            mask_G = None
+            mask = M
 
             AgA = A @ (mask * G) @ A
             G = None

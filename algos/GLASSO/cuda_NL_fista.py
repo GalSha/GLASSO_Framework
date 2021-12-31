@@ -14,11 +14,12 @@ class cuda_NL_fista(base):
         self.save_name = "cuda_NL_fista_N{N}_T{T}_innerT{inner_T}_LsIter{ls_iter}_StepLim{step_lim}" \
             .format(N=self.N, T=self.T, inner_T=self.inner_T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         import cupy as cp
         import cupyx
         cupyx.seterr(linalg='raise')
         S = cp.array(S, dtype='float32')
+        M = cp.array(M, dtype='int8')
         As = []
         status = []
         cp_step_lim = cp.float32(self.step_lim)
@@ -33,6 +34,7 @@ class cuda_NL_fista(base):
             A_diag = None
         else:
             A = cp.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(cp.asnumpy(A))
@@ -48,12 +50,10 @@ class cuda_NL_fista(base):
             sign_A = cp.sign(A, dtype='float32')
             mask_A = cp.abs(sign_A, dtype='float32').astype('int8')
             G = S - A_inv
-            F_subgrad_norm = cp.linalg.norm(cp_soft_threshold(cp, G + lam*sign_A, lam*(1.0-mask_A)))
+            F_subgrad_norm = cp.linalg.norm(M * cp_soft_threshold(cp, G + lam*sign_A, lam*(1.0-mask_A)))
             sign_A = None
-            mask_G = cp.abs(cp.sign(cp_soft_threshold(cp, G, lam), dtype='float32')).astype('int8')
-            mask = cp.bitwise_or(mask_A, mask_G)
-            mask_G = None
             mask_A = None
+            mask = M
             G_A_inv = G - A_inv
 
             inner_A = A
@@ -73,12 +73,12 @@ class cuda_NL_fista(base):
                 inv_in_inv = A_inv@inner_A@A_inv
                 sign_inner_A = cp.sign(inner_A, dtype='float32')
                 mask_inner_A = cp.abs(sign_inner_A, dtype='float32').astype('int8')
-                inner_f_subgrad_min = cp.linalg.norm(cp_soft_threshold(cp, G + inv_in_inv + lam*sign_inner_A, lam*mask_inner_A))
+                inner_f_subgrad_min = cp.linalg.norm(M * cp_soft_threshold(cp, G + inv_in_inv + lam*sign_inner_A, lam*mask_inner_A))
                 sign_inner_A = None
                 mask_inner_A = None
                 if inner_f_subgrad_min < 0.1 * F_subgrad_norm: break
 
-            A, step = armijo_linesearch_F(cp, A, S, lam, G, A_inv, inner_A - A, init=init_step, max_iter=self.ls_iter, step_lim=cp_step_lim)
+            A, step = armijo_linesearch_F(cp, A, S, M, lam, G, A_inv, inner_A - A, init=init_step, max_iter=self.ls_iter, step_lim=cp_step_lim)
             if step == 0: init_step = 0
 
             if history:
@@ -94,8 +94,9 @@ def objective_Q(cp, A, A_next, G, A_inv):
     return cp.trace(A_next_A @ G, dtype='float32') +\
                 0.5 * (cp.sum(cp.square(A_next_A@A_inv, dtype='float32'), dtype='float32'))
 
-def armijo_linesearch_F(cp, A, S, lam, g, A_inv, Delta, init = 1, beta = 0.5, c = 0.1 , max_iter=10, step_lim=0):
+def armijo_linesearch_F(cp, A, S, M, lam, g, A_inv, Delta, init = 1, beta = 0.5, c = 0.1 , max_iter=10, step_lim=0):
     L = cp.linalg.cholesky(A)
+    Delta = M * Delta
     init_F_val = cuda_objective_f_cholesky(cp,A,S,L)
     step = init
     for _ in range(max_iter):

@@ -14,11 +14,12 @@ class cuda_OBN(base):
         self.save_name = "cuda_OBN_N{N}_T{T}_innerT{inner_T}_LsIter{ls_iter}_StepLim{step_lim}" \
             .format(N=self.N, T=self.T, inner_T=self.inner_T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         import cupy as cp
         import cupyx
         cupyx.seterr(linalg='raise')
         S = cp.array(S, dtype='float32')
+        M = cp.array(M, dtype='int8')
         As = []
         status = []
         cp_step_lim = cp.float32(self.step_lim)
@@ -33,6 +34,7 @@ class cuda_OBN(base):
             A_diag = None
         else:
             A = cp.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(cp.asnumpy(A))
@@ -50,8 +52,7 @@ class cuda_OBN(base):
             G = S - A_inv
             G_min = cp_soft_threshold(cp, G + lam*sign_A, lam*(1.0 - mask_A))
             sign_soft_G = cp.sign(cp_soft_threshold(cp, G, lam), dtype='float32')
-            mask_G = cp.abs(sign_soft_G).astype('int8')
-            mask = cp.bitwise_or(mask_A, mask_G)
+            mask = M
             Z = sign_A - cp.bitwise_xor(mask, mask_A) * sign_soft_G
             sign_A = None
             sign_soft_G = None

@@ -12,7 +12,7 @@ class GISTA(base):
         self.save_name = "GISTA_N{N}_T{T}_LsIter{ls_iter}_StepLim{step_lim}"\
             .format(N=self.N, T=self.T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         As = []
         status = []
 
@@ -25,6 +25,7 @@ class GISTA(base):
             A = np.array(A0, dtype='float32')
         if history:
             As.append(A.copy())
+        A = M * A
 
         if status_f is not None: status.append(status_f(A, 0.0))
 
@@ -35,7 +36,7 @@ class GISTA(base):
                 if test_check_f(A, S, self.lam, A_inv):
                     break
 
-            A_next, step = GISTA_linesearch(A, S, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step,
+            A_next, step = GISTA_linesearch(A, S, M, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step,
                                             step_lim=self.step_lim)
             if step == 0:
                init_step = 0
@@ -67,11 +68,12 @@ def objective_Q(objective_f_value, A, D, A_next, step):
     return objective_f_value + np.trace(A_next_A @ D, dtype='float32') + (
                 0.5 / step) * (np.sum(np.square(A_next_A, dtype='float32'), dtype='float32'))
 
-def GISTA_linesearch(A, S, lam, A_inv, max_iter, init_step, step_lim):
+def GISTA_linesearch(A, S, M, lam, A_inv, max_iter, init_step, step_lim):
     if init_step == 0:
         return A, 0.0
     step = init_step
     D = S - A_inv
+    D = M * D
     L = np.linalg.cholesky(A)
     init_F_value = objective_f_cholesky(A,S,L)
     L = None

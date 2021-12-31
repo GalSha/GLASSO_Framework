@@ -23,7 +23,7 @@ class ALM(base):
         self.save_name = "ALM{skip}_N{N}_T{T}_Nmu{N_mu}_eta{eta}_StepLim{step_lim}"\
             .format(skip=skip_str, N=self.N, T=self.T, N_mu=self.N_mu, eta=self.eta, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         eps = 10*np.float32(np.finfo(np.float32).eps)
         As = []
         status = []
@@ -36,6 +36,7 @@ class ALM(base):
             A = np.array(A0, dtype='float32')
         if history:
             As.append(A.copy())
+        A = M * A
 
         if status_f is not None: status.append(status_f(A, 0.0))
 
@@ -63,6 +64,7 @@ class ALM(base):
 
             if not skip_check: X_old = X
             X = V @ np.diag(gamma) @ V.T
+            #X = M * np_hard_threshold(X, eps)
             X = np_hard_threshold(X, eps)
 
             X_Y = X - Y
@@ -75,6 +77,7 @@ class ALM(base):
                     d, V = np.linalg.eigh(X)
                     gamma = np.maximum(d, alpha_2)
                     X = V @ np.diag(gamma) @ V.T
+                    #X = M * np_hard_threshold(X, eps)
                     X = np_hard_threshold(X, eps)
                     X_inv = V @ np.diag(1 / gamma) @ V.T
                 else:
@@ -86,7 +89,7 @@ class ALM(base):
                 X_inv = V @ np.diag(1 / gamma) @ V.T
 
             G = S - X_inv
-            Y = np_soft_threshold(X - mu * G, mu*self.lam)
+            Y = M * np_soft_threshold(X - mu * G, mu*self.lam)
 
             if history:
                 if skip_check: As.append(X_old.copy())

@@ -13,7 +13,7 @@ class OBN(base):
         self.save_name = "OBN_N{N}_T{T}_innerT{inner_T}_LsIter{ls_iter}_StepLim{step_lim}" \
             .format(N=self.N, T=self.T, inner_T=self.inner_T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         As = []
         status = []
 
@@ -28,6 +28,7 @@ class OBN(base):
             A_diag = None
         else:
             A = np.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(A.copy())
@@ -46,12 +47,10 @@ class OBN(base):
                 G = S - A_inv
                 G_min = np_soft_threshold(G + lam*sign_A, lam*(1.0 - mask_A))
                 sign_soft_G = np.sign(np_soft_threshold(G, lam), dtype='float32')
-                mask_G = np.abs(sign_soft_G).astype('int8')
-                mask = np.bitwise_or(mask_A, mask_G)
+                mask = M
                 Z = sign_A - np.bitwise_xor(mask, mask_A) * sign_soft_G
                 sign_A = None
                 sign_soft_G = None
-                mask_G = None
                 mask_A = None
 
                 X = np.zeros(S.shape, dtype='float32')

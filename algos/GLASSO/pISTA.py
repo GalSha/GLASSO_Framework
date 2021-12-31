@@ -13,7 +13,7 @@ class pISTA(base):
         self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
             .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         init_step = np.float32(self.init_step)
         As = []
         status = []
@@ -28,6 +28,7 @@ class pISTA(base):
             A_diag = None
         else:
             A = np.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(A.copy())
@@ -44,9 +45,7 @@ class pISTA(base):
             mask_A = np.abs(sign_A, dtype='float32').astype('int8')
             G = S - A_inv
             sign_soft_G = np.sign(np_soft_threshold(G, lam), dtype='float32')
-            mask_G = np.abs(sign_soft_G).astype('int8')
-            mask = np.bitwise_or(mask_A, mask_G)
-            mask_G = None
+            mask = M
 
             AgA = A @ (mask * G) @ A
             G = None

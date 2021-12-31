@@ -13,7 +13,7 @@ class NL_fista(base):
         self.save_name = "NL_fista_N{N}_T{T}_innerT{inner_T}_LsIter{ls_iter}_StepLim{step_lim}" \
             .format(N=self.N, T=self.T, inner_T=self.inner_T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         As = []
         status = []
 
@@ -28,6 +28,7 @@ class NL_fista(base):
             A_diag = None
         else:
             A = np.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(A.copy())
@@ -43,12 +44,10 @@ class NL_fista(base):
             sign_A = np.sign(A, dtype='float32')
             mask_A = np.abs(sign_A, dtype='float32').astype('int8')
             G = S - A_inv
-            F_subgrad_norm = np.linalg.norm(np_soft_threshold(G + lam*sign_A, lam*(1.0-mask_A)))
+            F_subgrad_norm = np.linalg.norm(M * np_soft_threshold(G + lam*sign_A, lam*(1.0-mask_A)))
             sign_A = None
-            mask_G = np.abs(np.sign(np_soft_threshold(G, lam), dtype='float32')).astype('int8')
-            mask = np.bitwise_or(mask_A, mask_G)
-            mask_G = None
             mask_A = None
+            mask = M
             G_A_inv = G - A_inv
 
             inner_A = A
@@ -68,12 +67,12 @@ class NL_fista(base):
                 inv_in_inv = A_inv@inner_A@A_inv
                 sign_inner_A = np.sign(inner_A, dtype='float32')
                 mask_inner_A = np.abs(sign_inner_A, dtype='float32').astype('int8')
-                inner_f_subgrad_min = np.linalg.norm(np_soft_threshold(G + inv_in_inv + lam*sign_inner_A, lam*mask_inner_A))
+                inner_f_subgrad_min = np.linalg.norm(M * np_soft_threshold(G + inv_in_inv + lam*sign_inner_A, lam*mask_inner_A))
                 sign_inner_A = None
                 mask_inner_A = None
                 if inner_f_subgrad_min < 0.1 * F_subgrad_norm: break
 
-            A, step = armijo_linesearch_F(A, S, lam, G, A_inv, inner_A - A, init=init_step, max_iter=self.ls_iter, step_lim=self.step_lim)
+            A, step = armijo_linesearch_F(A, S, M, lam, G, A_inv, inner_A - A, init=init_step, max_iter=self.ls_iter, step_lim=self.step_lim)
             if step == 0: init_step = 0
 
             if history:
@@ -91,6 +90,7 @@ def objective_Q(A, A_next, G, A_inv):
 
 def armijo_linesearch_F(A, S, lam, g, A_inv, Delta, init = 1, beta = 0.5, c = 0.1 , max_iter=10, step_lim=0):
     L = np.linalg.cholesky(A)
+    Delta = M * Delta
     init_F_val = objective_f_cholesky(A,S,L)
     step = init
     for _ in range(max_iter):

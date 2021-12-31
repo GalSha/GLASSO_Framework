@@ -12,11 +12,12 @@ class cuda_GISTA(base):
         self.save_name = "cuda_GISTA_N{N}_T{T}_LsIter{ls_iter}_StepLim{step_lim}" \
             .format(N=self.N, T=self.T, ls_iter=self.ls_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         import cupy as cp
         import cupyx
         cupyx.seterr(linalg='raise')
         S = cp.array(S, dtype='float32')
+        M = cp.array(M, dtype='int8')
         As = []
         status = []
         cp_step_lim = cp.float32(self.step_lim)
@@ -29,6 +30,7 @@ class cuda_GISTA(base):
             A_diag = None
         else:
             A = cp.array(A0, dtype='float32')
+        A = M * A
 
         if history:
             As.append(cp.asnumpy(A))
@@ -42,7 +44,7 @@ class cuda_GISTA(base):
                 if test_check_f(A, S, self.lam, A_inv):
                     break
 
-            A_next, step = cuda_GISTA_linesearch(cp, A, S, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step, step_lim=cp_step_lim)
+            A_next, step = cuda_GISTA_linesearch(cp, A, S, M, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step, step_lim=cp_step_lim)
             if step == 0:
                init_step = 0
             else:
@@ -76,11 +78,12 @@ def objective_Q(cp, objective_f_value, A, D, A_next, step):
                 0.5 / step) * (cp.sum(cp.square(A_next_A, dtype='float32'), dtype='float32'))
 
 
-def cuda_GISTA_linesearch(cp, A, S, lam, A_inv, max_iter, init_step, step_lim):
+def cuda_GISTA_linesearch(cp, A, S, M, lam, A_inv, max_iter, init_step, step_lim):
     if init_step == 0:
         return A, cp.array(0.0)
     step = init_step
     D = S - A_inv
+    D = M * D
     L = cp.linalg.cholesky(A)
     init_F_value = cuda_objective_f_cholesky(cp, A,S,L)
     L = None

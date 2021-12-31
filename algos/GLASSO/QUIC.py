@@ -13,7 +13,7 @@ class QUIC(base):
         self.save_name = "QUIC_N{N}_T{T}_innerT{inner_T}_armijoIter{armijo_iter}_StepLim{step_lim}"\
             .format(N=self.N, T=self.T, inner_T=self.inner_T, armijo_iter=self.armijo_iter, step_lim=self.step_lim)
 
-    def compute(self, S, A0, status_f, history, test_check_f):
+    def compute(self, S, M, A0, status_f, history, test_check_f):
         As = []
         status = []
         not_I = 1 - np.eye(self.N, dtype='int8')
@@ -56,7 +56,7 @@ class QUIC(base):
                 for _ in range(inner_T):
                     for i in range(self.N):
                         for j in range(i+1):
-                            if np.abs(g[i,j], dtype='float32') < self.lam and A[i,j] == 0: continue
+                            if M[i,j] == 0: continue
                             b = g[i,j] + W[:,i]@U[:,j]
                             b_div_M = b * div_M[i,j]
                             mu = np_soft_threshold(A[i,j] + D[i,j] - b_div_M, lam_div_M[i,j]) - A[i,j] - D[i,j]
