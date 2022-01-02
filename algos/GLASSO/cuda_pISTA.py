@@ -5,13 +5,17 @@ from utils.common import cp_soft_threshold
 from utils.GLASSO.glasso import cuda_objective_F_cholesky
 
 class cuda_pISTA(base):
-    def __init__(self, T, N, lam, ls_iter, step_lim, init_step):
+    def __init__(self, T, N, lam, ls_iter, step_lim, init_step, hybrid):
         super(cuda_pISTA, self).__init__(T, N, lam)
         self.ls_iter = ls_iter
         self.step_lim = step_lim
         self.init_step = init_step
-        self.save_name = "cuda_pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
-            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
+        self.hybrid = hybrid
+        hybrid_str = ""
+        if self.hybrid: hybrid_str = "Hybrid"
+        self.save_name = "cuda_pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}_{hybrid_str}"\
+            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim,
+                    hybrid_str=hybrid_str)
 
     def compute(self, S, M, A0, status_f, history, test_check_f):
         import cupy as cp
@@ -47,6 +51,7 @@ class cuda_pISTA(base):
             A_inv = cp.linalg.inv(A)
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             sign_A = cp.sign(A, dtype='float32')
@@ -54,6 +59,10 @@ class cuda_pISTA(base):
             G = S - A_inv
             sign_soft_G = cp.sign(cp_soft_threshold(cp, G, lam),dtype='float32')
             mask = M
+            if self.hybrid:
+                mask_G = cp.abs(sign_soft_G,dtype='int8')
+                mask = mask * cp.bitwise_or(mask_A, mask_G)
+                mask_G = None
 
             AgA = A @ (mask * G) @ A
             G = None

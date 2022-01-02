@@ -42,6 +42,7 @@ class cuda_GISTA(base):
         for t in range(self.T):
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             A_next, step = cuda_GISTA_linesearch(cp, A, S, M, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step, step_lim=cp_step_lim)

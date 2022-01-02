@@ -45,6 +45,7 @@ class cuda_OBN(base):
             A_inv = cp.linalg.inv(A)
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             sign_A = cp.sign(A, dtype='float32')

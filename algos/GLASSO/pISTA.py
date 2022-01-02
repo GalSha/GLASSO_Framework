@@ -5,13 +5,17 @@ from utils.common import np_soft_threshold
 from utils.GLASSO.glasso import objective_F_cholesky
 
 class pISTA(base):
-    def __init__(self, T, N, lam, ls_iter, step_lim, init_step):
+    def __init__(self, T, N, lam, ls_iter, step_lim, init_step, hybrid):
         super(pISTA, self).__init__(T, N, lam)
         self.ls_iter = ls_iter
         self.step_lim = step_lim
         self.init_step = init_step
-        self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
-            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
+        self.hybrid = hybrid
+        hybrid_str = ""
+        if self.hybrid: hybrid_str = "Hybrid"
+        self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}_{hybrid_str}"\
+            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim,
+                    hybrid_str=hybrid_str)
 
     def compute(self, S, M, A0, status_f, history, test_check_f):
         init_step = np.float32(self.init_step)
@@ -39,6 +43,7 @@ class pISTA(base):
             A_inv = np.linalg.inv(A)
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             sign_A = np.sign(A, dtype='float32')
@@ -46,6 +51,10 @@ class pISTA(base):
             G = S - A_inv
             sign_soft_G = np.sign(np_soft_threshold(G, lam), dtype='float32')
             mask = M
+            if self.hybrid:
+                mask_G = np.abs(sign_soft_G).astype('int8')
+                mask = mask * np.bitwise_or(mask_A, mask_G)
+                mask_G = None
 
             AgA = A @ (mask * G) @ A
             G = None
@@ -148,3 +157,6 @@ def init_pISTA_parser(pISTA_pasrser):
     pISTA_pasrser.add_argument(
         '-st', '--step', required=False, type=float, default=1.0, dest='init_step',
         help='init_step.')
+    pISTA_pasrser.add_argument(
+        '-hy', '--hybrid', action='store_true', required=False, default=False, dest='hybrid',
+        help='Hybrid mask mode.')
