@@ -20,7 +20,7 @@ class cuda_pISTA(base):
         import cupyx.scipy.sparse.linalg as cp_spl
         cpx.seterr(linalg='raise')
         init_step = cp.float32(self.init_step)
-        S = cp.array(S)
+        S = cp.array(S, dtype='float32')
         As = []
         status = []
         cp_step_lim = cp.float32(self.step_lim)
@@ -45,6 +45,7 @@ class cuda_pISTA(base):
             A_inv = cp.linalg.inv(A)
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             sign_A = cp.sign(A, dtype='float32')

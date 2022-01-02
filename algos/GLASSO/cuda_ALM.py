@@ -62,6 +62,7 @@ class cuda_ALM(base):
         for t in range(self.T):
             if test_check_f is not None:
                 if test_check_f(X, S, self.lam, X_inv):
+                    t -= 1
                     break
             #Lam = G - (X - Y)/mu
             if t > 0 and t % self.N_mu == 0: mu = cp.float32(maximum(mu / eta, min_mu))

@@ -44,6 +44,7 @@ class cuda_QUIC(base):
             W = cp.linalg.inv(A)
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, W):
+                    t -= 1
                     break
 
             if init_step != 0:

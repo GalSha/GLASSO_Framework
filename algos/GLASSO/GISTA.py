@@ -33,6 +33,7 @@ class GISTA(base):
         for t in range(self.T):
             if test_check_f is not None:
                 if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
                     break
 
             A_next, step = GISTA_linesearch(A, S, self.lam, A_inv, max_iter=self.ls_iter, init_step=init_step,
