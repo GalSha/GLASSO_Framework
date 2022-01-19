@@ -1,6 +1,6 @@
 BSD 3-Clause License
 
-Copyright (c) 2022, GalSha
+Copyright (c) 2022, Gal Shalom
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
