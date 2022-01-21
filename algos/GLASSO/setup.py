@@ -52,6 +52,6 @@ def setup_algo(args):
         else:
             from algos.GLASSO.pISTA import pISTA
         algo = pISTA(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
-                     init_step=args.init_step)
+                     init_step=args.init_step, c_ls=args.c_ls, proj=args.proj, st=args.st)
 
     return algo
