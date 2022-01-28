@@ -54,4 +54,22 @@ def setup_algo(args):
         algo = pISTA(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
                      init_step=args.init_step)
 
+    if args.algo == 'pISTA_GISTA':
+        # pISTA_GISTA
+        if args.cuda:
+            from algos.GLASSO.cuda_pISTA_GISTA import cuda_pISTA_GISTA as pISTA_GISTA
+        else:
+            from algos.GLASSO.pISTA_GISTA import pISTA_GISTA
+        algo = pISTA_GISTA(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
+                     init_step=args.init_step)
+
+    if args.algo == 'pISTA_PCD':
+        # pISTA_PCD
+        if args.cuda:
+            from algos.GLASSO.cuda_pISTA_PCD import cuda_pISTA_PCD as pISTA_PCD
+        else:
+            from algos.GLASSO.pISTA_PCD import pISTA_PCD
+        algo = pISTA_PCD(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
+                     init_step=args.init_step)
+
     return algo

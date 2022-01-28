@@ -91,6 +91,14 @@ def glasso_full_test_generate_parser(
     init_pISTA_parser(full_subparser.add_parser('pISTA', parents=[full_common_parser,glasso_full_parser]))
     init_pISTA_parser(test_subparser.add_parser('pISTA', parents=[test_common_parser,glasso_test_parser]))
 
+    from algos.GLASSO.pISTA_GISTA import init_pISTA_GISTA_parser
+    init_pISTA_GISTA_parser(full_subparser.add_parser('pISTA_GISTA', parents=[full_common_parser,glasso_full_parser]))
+    init_pISTA_GISTA_parser(test_subparser.add_parser('pISTA_GISTA', parents=[test_common_parser,glasso_test_parser]))
+
+    from algos.GLASSO.pISTA_PCD import init_pISTA_PCD_parser
+    init_pISTA_PCD_parser(full_subparser.add_parser('pISTA_PCD', parents=[full_common_parser,glasso_full_parser]))
+    init_pISTA_PCD_parser(test_subparser.add_parser('pISTA_PCD', parents=[test_common_parser,glasso_test_parser]))
+
     #Data generation
     generate_data_parser = generate_subparser.add_parser('data', help='Generate data.', parents=[generate_common_parser, glasso_generate_parser])
     generate_data_parser.set_defaults(object='data')
