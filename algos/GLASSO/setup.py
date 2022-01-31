@@ -72,4 +72,13 @@ def setup_algo(args):
         algo = pISTA_PCD(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
                      init_step=args.init_step)
 
+    if args.algo == 'pISTA_OBN':
+        # pISTA_OBN
+        if args.cuda:
+            from algos.GLASSO.cuda_pISTA_OBN import cuda_pISTA_OBN as pISTA_OBN
+        else:
+            from algos.GLASSO.pISTA_OBN import pISTA_OBN
+        algo = pISTA_OBN(T=args.T, N=args.N, lam=args.lam, inner_T=args.inner_T, ls_iter=args.ls_iter, step_lim=args.step_lim,
+                         init_step=args.init_step)
+
     return algo

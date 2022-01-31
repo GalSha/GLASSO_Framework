@@ -1,0 +1,187 @@
+from numpy import inf
+from numpy import minimum
+from numpy import linalg
+from algos.GLASSO.base import base
+from utils.common import cp_soft_threshold
+from utils.GLASSO.glasso import cuda_objective_F_cholesky
+from algos.GLASSO.cuda_OBN import projected_linesearch_F
+
+class cuda_pISTA_OBN(base):
+    def __init__(self, T, N, lam, inner_T, ls_iter, step_lim, init_step):
+        super(cuda_pISTA_OBN, self).__init__(T, N, lam)
+        self.inner_T = inner_T
+        self.ls_iter = ls_iter
+        self.step_lim = step_lim
+        self.init_step = init_step
+        self.save_name = "cuda_pISTA_OBN_N{N}_T{T}_innerT{inner_T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
+            .format(N=self.N, T=self.T, inner_T=self.inner_T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
+
+    def compute(self, S, A0, status_f, history, test_check_f):
+        import cupy as cp
+        import cupyx as cpx
+        import cupyx.scipy.sparse as cp_sp
+        import cupyx.scipy.sparse.linalg as cp_spl
+        cpx.seterr(linalg='raise')
+        init_step = cp.float32(self.init_step)
+        S = cp.array(S, dtype='float32')
+        As = []
+        status = []
+        cp_step_lim = cp.float32(self.step_lim)
+
+        lam = cp.float32(self.lam)
+
+        if A0 is None:
+            A_diag = self.lam * cp.ones(self.N, dtype='float32')
+            A_diag = A_diag + cp.diag(S)
+            A_diag = 1.0 / A_diag
+            A = cp.diag(A_diag)
+            A_diag = None
+        else:
+            A = cp.array(A0, dtype='float32')
+
+        if history:
+            As.append(cp.asnumpy(A))
+
+        if status_f is not None: status.append(status_f(A, 0.0))
+
+        for t in range(self.T):
+            A_inv = cp.linalg.inv(A)
+            if test_check_f is not None:
+                if test_check_f(A, S, self.lam, A_inv):
+                    t -= 1
+                    break
+            if t % 2 == 0:
+                sign_A = cp.sign(A, dtype='float32')
+                mask_A = cp.abs(sign_A, dtype='int8')
+                G = S - A_inv
+                sign_soft_G = cp.sign(cp_soft_threshold(cp, G, lam),dtype='float32')
+                mask_G = cp.abs(sign_soft_G,dtype='int8')
+                mask = cp.bitwise_or(mask_A, mask_G)
+                mask_G = None
+
+                AgA = A @ (mask * G) @ A
+                G = None
+
+                sign_A -= cp.bitwise_xor(mask, mask_A) * sign_soft_G
+                sign_soft_G = None
+
+                AhA = A @ sign_A @ A
+                AhA *= lam
+                A_diag = cp.diag(A).copy().reshape(-1,1)
+                cp.fill_diagonal(A, 0)
+                A_no_diag = A
+                AAt = ((A_no_diag * A_no_diag) + (A_diag * A_diag.T)) * sign_A
+                AAt *= lam
+                cp.fill_diagonal(A, A_diag)
+                A_diag = None
+                A_no_diag = None
+                sign_A = None
+
+                AghA = AgA + AhA - AAt
+                AgA = None
+                AhA = None
+
+                A, step = pista_cholesky_linesearch(cp, A, S, lam, mask, AghA, AAt, A,
+                                                            step=init_step, max_iter=self.ls_iter, step_lim=cp_step_lim)
+
+                #if step == 0: init_step = 0
+            else:
+                sign_A = cp.sign(A, dtype='float32')
+                mask_A = cp.abs(sign_A, dtype='float32').astype('int8')
+                G = S - A_inv
+                G_min = cp_soft_threshold(cp, G + lam * sign_A, lam * (1.0 - mask_A))
+                sign_soft_G = cp.sign(cp_soft_threshold(cp, G, lam), dtype='float32')
+                mask_G = cp.abs(sign_soft_G).astype('int8')
+                mask = cp.bitwise_or(mask_A, mask_G)
+                Z = sign_A - cp.bitwise_xor(mask, mask_A) * sign_soft_G
+                sign_A = None
+                sign_soft_G = None
+                mask_G = None
+                mask_A = None
+
+                X = cp.zeros(S.shape, dtype='float32')
+                R = - mask * (G + lam * Z)
+                G = None
+                Q = R
+                RR_old = cp.sum(R * R, dtype='float32')
+                epsilon = 1e-10
+                inner_T = self.inner_T
+                if inner_T < 0:
+                    inner_T = 5 + t // (-inner_T)
+                    if t % (-self.inner_T) == 0: init_step = cp.float32(1.0)
+                for inner_t in range(minimum(S.shape[0], inner_T)):
+                    if init_step == 0: break
+                    if RR_old < epsilon: break
+                    Y = mask * (A_inv @ Q @ A_inv)
+                    alpha = RR_old / cp.sum(Q * Y, dtype='float32')
+                    X = X + alpha * Q
+                    R = R - alpha * Y
+                    RR = cp.sum(R * R, dtype='float32')
+                    beta = RR / RR_old
+                    Q = R + beta * Q
+                    RR_old = RR
+                A_inv = None
+
+                A, step = projected_linesearch_F(cp, A, S, lam, G_min, Z, X, init=init_step, max_iter=self.ls_iter,
+                                                 step_lim=cp_step_lim)
+
+            if history:
+                As.append(cp.asnumpy(A))
+
+            if status_f is not None: status.append(status_f(A, step))
+
+        if init_step == 0: t = inf
+        return A, status, As, t+1
+
+def pista_cholesky_linesearch(cp, A, S, lam, mask, a, b, c, step, max_iter, step_lim):
+    if step == 0:
+        return A, 0.0
+    beta = step
+    L = cp.linalg.cholesky(A)
+    init_F_value = cuda_objective_F_cholesky(cp, A,S,lam,L)
+    L = None
+    beta_psd = None
+    for _ in range(max_iter):
+        if beta < step_lim: break
+        try:
+            beta_a = beta * a
+            beta_b = cp.abs(beta * b, dtype='float32')
+            A_next = mask * cp_soft_threshold(cp, c - beta_a, beta_b)
+            beta_a = None
+            beta_b = None
+
+            A_next = A_next + cp.transpose(A_next)
+            A_next *= 0.5
+            L = cp.linalg.cholesky(A_next)
+            if beta_psd is None: beta_psd = beta
+            if cuda_objective_F_cholesky(cp, A_next,S,lam,L) < init_F_value:
+                return A_next, beta
+        except linalg.LinAlgError:
+            pass
+        beta *= 0.5
+
+    eigs = cp.linalg.eigvalsh(A)
+    beta = (eigs[0]/eigs[-1]) ** 2
+    beta = cp.float32(cp.asnumpy(0.81 * beta))
+    eigs = None
+    if beta_psd is not None and beta > beta_psd: beta = beta_psd
+    beta_eps = cp.finfo(cp.float32).eps
+    while True:
+        try:
+            beta_a = beta * a
+            beta_b = cp.abs(beta * b, dtype='float32')
+            A_next = mask * cp_soft_threshold(cp, c - beta_a, beta_b)
+            beta_a = None
+            beta_b = None
+
+            A_next = A_next + cp.transpose(A_next)
+            A_next *= 0.5
+            L = cp.linalg.cholesky(A_next)
+            return A_next, beta
+        except linalg.LinAlgError:
+            pass
+        beta *= 0.5
+        #Emulate do while
+        if beta < beta_eps: break
+
+    return A, 0.0
