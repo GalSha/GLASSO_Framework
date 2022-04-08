@@ -5,13 +5,18 @@ from utils.common import np_soft_threshold
 from utils.GLASSO.glasso import objective_F_cholesky
 
 class pISTA(base):
-    def __init__(self, T, N, lam, ls_iter, step_lim, init_step):
+    def __init__(self, T, N, lam, ls_iter, step_lim, init_step, check_one, sigma):
         super(pISTA, self).__init__(T, N, lam)
         self.ls_iter = ls_iter
         self.step_lim = step_lim
         self.init_step = init_step
-        self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}"\
-            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim)
+        one_str = ""
+        self.check_one = check_one
+        if check_one: one_str = "_checkOne"
+        self.sigma = sigma
+        self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}{one_str}_sigma{sigma}"\
+            .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim, one_str=one_str,
+                    sigma=self.sigma)
 
     def compute(self, S, A0, status_f, history, test_check_f):
         init_step = np.float32(self.init_step)
@@ -50,7 +55,7 @@ class pISTA(base):
             mask_G = None
 
             AgA = A @ (mask * G) @ A
-            G = None
+            if self.sigma == 0: G = None
 
             sign_A -= np.bitwise_xor(mask, mask_A) * sign_soft_G
             sign_soft_G = None
@@ -71,8 +76,14 @@ class pISTA(base):
             AgA = None
             AhA = None
 
-            A, step = pista_cholesky_linesearch(A, S, lam, mask, AghA, AAt, A,
-                                                        step=init_step, max_iter=self.ls_iter, step_lim=self.step_lim)
+            if self.sigma == 0:
+                A, step = pista_cholesky_linesearch(A, S, lam, mask, AghA, AAt, A,
+                                                            step=init_step, max_iter=self.ls_iter, step_lim=self.step_lim,
+                                                            check_one=self.check_one)
+            else:
+                A, step = pista_armijo_linesearch(A, S, lam, mask, AghA, AAt, A,
+                                                    step=init_step, max_iter=self.ls_iter, step_lim=self.step_lim,
+                                                    check_one=self.check_one, G = G, sigma=self.sigma)
             if step == 0: init_step = 0
 
             if history:
@@ -83,7 +94,7 @@ class pISTA(base):
         if init_step == 0: t = np.inf
         return A, status, As, t+1
 
-def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim):
+def pista_armijo_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim, check_one, G, sigma = 0.1):
     if step == 0:
         return A, 0.0
     beta = step
@@ -104,12 +115,23 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
             A_next *= 0.5
             L = np.linalg.cholesky(A_next)
             if beta_psd is None: beta_psd = beta
-            if objective_F_cholesky(A_next,S,lam,L) < init_F_value:
+            Delta = A_next - A
+            g_Delta_trace = np.trace(G @ Delta, dtype='float32')
+            lam_term = lam * np.sum((np.abs(A + Delta, dtype='float32') - np.abs(A, dtype='float32')), dtype='float32')
+            g_Delta_trace_lam_term = g_Delta_trace + lam_term
+            if check_one:
+                if objective_F_cholesky(A_next,S,lam,L) <= init_F_value + 1.0 * sigma * (g_Delta_trace_lam_term):
+                    return A_next, -beta
+            A_next = A + beta * Delta
+            A_next = A_next + np.transpose(A_next)
+            A_next *= 0.5
+            L = np.linalg.cholesky(A_next)
+            if objective_F_cholesky(A_next, S, lam, L) <= init_F_value + beta * sigma * (g_Delta_trace_lam_term):
                 return A_next, beta
         except linalg.LinAlgError:
             pass
         beta *= 0.5
-
+    '''
     eigs = np.linalg.eigvalsh(A)
     beta = (eigs[0]/eigs[-1]) ** 2
     beta = np.float32(0.81 * beta)
@@ -133,7 +155,68 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
         beta *= 0.5
         #Emulate do while
         if beta < beta_eps: break
+    '''
+    return A, 0.0
 
+def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim, check_one):
+    if step == 0:
+        return A, 0.0
+    beta = step
+    L = np.linalg.cholesky(A)
+    init_F_value = objective_F_cholesky(A,S,lam,L)
+    L = None
+    beta_psd = None
+    for _ in range(max_iter):
+        if beta < step_lim: break
+        try:
+            beta_a = beta * a
+            beta_b = np.abs(beta * b, dtype='float32')
+            A_next = mask * np_soft_threshold(c - beta_a, beta_b)
+            beta_a = None
+            beta_b = None
+
+            A_next = A_next + np.transpose(A_next)
+            A_next *= 0.5
+            L = np.linalg.cholesky(A_next)
+            if beta_psd is None: beta_psd = beta
+            if check_one:
+                if objective_F_cholesky(A_next,S,lam,L) < init_F_value:
+                    return A_next, -beta
+            A_next = A + beta * (A_next - A)
+            A_next = A_next + np.transpose(A_next)
+            A_next *= 0.5
+            L = np.linalg.cholesky(A_next)
+            if objective_F_cholesky(A_next, S, lam, L) < init_F_value:
+                return A_next, beta
+        except linalg.LinAlgError:
+            pass
+        beta *= 0.5
+
+    '''
+    eigs = np.linalg.eigvalsh(A)
+    beta = (eigs[0]/eigs[-1]) ** 2
+    beta = np.float32(0.81 * beta)
+    eigs = None
+    if beta_psd is not None and beta > beta_psd: beta = beta_psd
+    beta_eps = np.finfo(np.float32).eps
+    while True:
+        try:
+            beta_a = beta * a
+            beta_b = np.abs(beta * b, dtype='float32')
+            A_next = mask * np_soft_threshold(c - beta_a, beta_b)
+            beta_a = None
+            beta_b = None
+
+            A_next = A_next + np.transpose(A_next)
+            A_next *= 0.5
+            L = np.linalg.cholesky(A_next)
+            return A_next, beta
+        except linalg.LinAlgError:
+            pass
+        beta *= 0.5
+        #Emulate do while
+        if beta < beta_eps: break
+    '''
     return A, 0.0
 
 def init_pISTA_parser(pISTA_pasrser):
@@ -150,3 +233,9 @@ def init_pISTA_parser(pISTA_pasrser):
     pISTA_pasrser.add_argument(
         '-st', '--step', required=False, type=float, default=1.0, dest='init_step',
         help='init_step.')
+    pISTA_pasrser.add_argument(
+        '-sg', '--sigma', required=False, type=float, default=0.0, dest='sigma',
+        help='sigma.')
+    pISTA_pasrser.add_argument(
+        '-one', '--one', action='store_true', required=False, default=False, dest='check_one',
+        help='check one.')
