@@ -43,6 +43,8 @@ One can use the `misc/geo_to_mat.py` script to turn a GEO SOFT file as in [Gene 
 
 ## References
 ### Papers
+* `pISTA` algorithm - [pISTA: preconditioned Iterative Soft Thresholding Algorithm for Graphical Lasso
+](https://arxiv.org/pdf/2205.10027.pdf) (Gal Shalom, Eran Treister, Irad Yavneh)  
 * `QUIC` algorithm - [QUIC: Quadratic Approximation for Sparse Inverse Covariance Estimation](https://jmlr.org/papers/volume15/hsieh14a/hsieh14a.pdf) (Cho-Jui Hsieh, Mátyás A. Sustik, Inderjit S. Dhillon, Pradeep Ravikumar)  
 * `GISTA` algorithm - [Iterative Thresholding Algorithm for Sparse Inverse Covariance Estimation](https://arxiv.org/pdf/1211.2532.pdf) (Dominique Guillot, Bala Rajaratnam, Benjamin T. Rolfs, Arian Maleki, Ian Wong)  
 * `ALM` algorithm - [Sparse inverse covariance selection via alternating linearization methods](https://proceedings.neurips.cc/paper/2010/file/2723d092b63885e0d7c260cc007e8b9d-Paper.pdf) (Katya Scheinberg, Shiqian Ma, Donald Goldfarb.)  
