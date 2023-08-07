@@ -39,7 +39,9 @@ If the Cupy library is installed, one can use the `-cuda` flag to run the task o
 
 ## MISC ##
 
-One can use the `misc/geo_to_mat.py` script to turn a GEO SOFT file as in [Gene Expression Omnibus](http://www.ncbi.nlm.nih.gov/geo/) into a matrix.
+* `misc/geo_to_mat.py` script can be used to turn a GEO SOFT file as in [Gene Expression Omnibus](http://www.ncbi.nlm.nih.gov/geo/) into a matrix.
+* `misc/cpu_timing.py` script can be used to measure different numerical ways for inversion, Cholesky or condition number computation.
+* `misc/run_external.py` script can be used to measure and run external public algorithms, currently the only supported algorithms are `BigQuic` and `SQUIC`.
 
 ## References
 ### Papers
@@ -49,6 +51,10 @@ One can use the `misc/geo_to_mat.py` script to turn a GEO SOFT file as in [Gene 
 * `GISTA` algorithm - [Iterative Thresholding Algorithm for Sparse Inverse Covariance Estimation](https://arxiv.org/pdf/1211.2532.pdf) (Dominique Guillot, Bala Rajaratnam, Benjamin T. Rolfs, Arian Maleki, Ian Wong)  
 * `ALM` algorithm - [Sparse inverse covariance selection via alternating linearization methods](https://proceedings.neurips.cc/paper/2010/file/2723d092b63885e0d7c260cc007e8b9d-Paper.pdf) (Katya Scheinberg, Shiqian Ma, Donald Goldfarb.)  
 * `OBN` and `NL_fista` algorithms - [Newton-like methods for sparse inverse covariance estimation](https://papers.nips.cc/paper/2012/file/b3967a0e938dc2a6340e258630febd5a-Paper.pdf) (Figen Oztoprak, Jorge Nocedal, Steven Rennie, Peder A. Olsen)  
+* `BigQUIC` algorithms - [BIG & QUIC: Sparse Inverse Covariance Estimation for a Million Variables](https://www.cs.utexas.edu/~cjhsieh/hugeQUIC.pdf) (Cho-Jui Hsieh, Mátyás A. Sustik, Inderjit S. Dhillon, Pradeep Ravikumar, Russell A. Poldrack)  
+* `SQUIC` algorithms - [Large-scale sparse inverse covariance matrix estimation](http://www.icm.tu-bs.de/~bolle/Publicat/squic.pdf) (Matthias  Bollhöfer, Olaf Schenk)
 
 ### Implementations
-  * [ALM authors implemeanations](https://www.math.ucdavis.edu/~sqma/ALM-SICS.html)
+  * [ALM authors implementations](https://www.math.ucdavis.edu/~sqma/ALM-SICS.html).
+  * [SQUIC authors implementations](https://www.gitlab.ci.inf.usi.ch/SQUIC/libSQUIC).
+  * [BigQUIC authors implementations](https://github.com/cran/BigQuic).
