@@ -217,6 +217,7 @@ class GraphicalGenerator():
 
         self.sigs_list = []
         self.ss_list = []
+        self.ys_list = []
         if self.constant:
             for _ in range(self.batch):
                 if self.sig_exist:
@@ -236,6 +237,7 @@ class GraphicalGenerator():
                         ys = normlize_data(ys, mean, std)
                         self.sigs_list[-1] = normlize_sig_inv(self.sigs_list[-1], std).astype('float32')
                     self.ss_list += [cal_S(ys).astype('float32')]
+                    self.ys_list += [ys.astype('float32')]
                 else:
                     cuda_sig = self.cp.asarray(self.sigs_list[-1])
                     ys = cuda_generate_ys(self.cp,cuda_sig, samples)
@@ -246,6 +248,7 @@ class GraphicalGenerator():
                         self.sigs_list[-1] = self.cp.asnumpy(cuda_normlize_sig_inv(self.cp, cuda_sig, std)).astype(
                             'float32')
                     self.ss_list += [self.cp.asnumpy(cuda_cal_S(self.cp, ys)).astype('float32')]
+                    self.ys_list += [self.cp.asnumpy(ys).astype('float32')]
 
     def __call__(self):
         if self.constant:
@@ -253,6 +256,7 @@ class GraphicalGenerator():
 
         self.sigs_list = []
         self.ss_list = []
+        self.ys_list = []
         for _ in range(self.batch):
             if self.sig_exist:
                 self.sigs_list += [self.sig.astype('float32')]
@@ -271,6 +275,7 @@ class GraphicalGenerator():
                     ys = normlize_data(ys, mean, std)
                     self.sigs_list[-1] = normlize_sig_inv(self.sigs_list[-1], std).astype('float32')
                 self.ss_list += [cal_S(ys).astype('float32')]
+                self.ys_list += [ys.astype('float32')]
             else:
                 cuda_sig = self.cp.asarray(self.sigs_list[-1])
                 ys = cuda_generate_ys(self.cp, cuda_sig, samples)
@@ -281,5 +286,6 @@ class GraphicalGenerator():
                     self.sigs_list[-1] = self.cp.asnumpy(cuda_normlize_sig_inv(self.cp, cuda_sig, std)).astype(
                         'float32')
                 self.ss_list += [self.cp.asnumpy(cuda_cal_S(self.cp, ys)).astype('float32')]
+                self.ys_list += [self.cp.asnumpy(ys).astype('float32')]
 
-        return self.sigs_list, self.ss_list
+        return self.sigs_list, self.ss_list, self.ys_list

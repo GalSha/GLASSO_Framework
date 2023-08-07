@@ -115,12 +115,16 @@ if not os.path.exists(db_path):
     os.mkdir(db_path)
 
 print("Save Sigs! Path:")
-print(db_path+"/Sigs_test.npy")
-np.save(db_path+"/Sigs_test.npy",np.array(sigs_list))
+print(db_path+"/Sigs.npy")
+np.save(db_path+"/Sigs.npy",np.array(sigs_list))
 
 print("Save Ss! Path:")
-print(db_path+"/Ss_test.npy")
-np.save(db_path+"/Ss_test.npy",np.array(ss_list))
+print(db_path+"/Ss.npy")
+np.save(db_path+"/Ss.npy",np.array(ss_list))
+
+print("Save ys! Path:")
+print(db_path+"/ys.npy")
+np.save(db_path+"/ys.npy",np.array([ys]))
 
 end = time.time()
 elapsed = end - start

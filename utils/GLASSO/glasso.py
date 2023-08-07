@@ -17,6 +17,12 @@ def objective_f_cholesky(A,S,L):
 def objective_F_cholesky(A,S,lam,L):
     return objective_f_cholesky(A,S,L)+lam*np.sum(np.abs(A))
 
+def objective_f_cholesky64(A,S,L):
+    return -2*np.sum(np.log(np.diagonal(L),dtype='float64'))+np.trace(S@A ,dtype='float64')
+
+def objective_F_cholesky64(A,S,lam,L):
+    return objective_f_cholesky64(A,S,L)+lam*np.sum(np.abs(A))
+
 def objective_dual(A_inv,S,lam):
     U = np.minimum(np.maximum(A_inv - S, -lam), lam)
     n = S.shape[0]

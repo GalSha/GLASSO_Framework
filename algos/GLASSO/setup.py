@@ -49,9 +49,11 @@ def setup_algo(args):
         # pISTA
         if args.cuda:
             from algos.GLASSO.cuda_pISTA import cuda_pISTA as pISTA
+        elif args.bit64:
+            from algos.GLASSO.pISTA64 import pISTA
         else:
             from algos.GLASSO.pISTA import pISTA
         algo = pISTA(T=args.T, N=args.N, lam=args.lam, ls_iter=args.ls_iter, step_lim=args.step_lim,
-                     init_step=args.init_step)
+                     init_step=args.init_step, quic=args.quic)
 
     return algo

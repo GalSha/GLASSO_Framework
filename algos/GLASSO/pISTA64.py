@@ -1,9 +1,8 @@
 import numpy as np
 from numpy import linalg
 from algos.GLASSO.base import base
-from utils.common import np_soft_threshold, np_cholesky_inv, np_cholesky, np_is_diag
-from utils.GLASSO.glasso import objective_F_cholesky, objective_g
-from algos.GLASSO.QUIC import armijo_linesearch_F
+from utils.common import np_soft_threshold64, np_cholesky_inv, np_cholesky, np_is_diag
+from utils.GLASSO.glasso import objective_F_cholesky64
 
 class pISTA(base):
     def __init__(self, T, N, lam, ls_iter, step_lim, init_step, quic):
@@ -16,7 +15,7 @@ class pISTA(base):
         if quic is not None and 0.5 > quic > 0:
             self.quic_sigma = quic
             quic_str = "_QUIC{quic}".format(quic=self.quic_sigma)
-        self.save_name = "pISTA_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}{quic_str}"\
+        self.save_name = "pISTA64_N{N}_T{T}_step{step}_LsIter{ls_iter}_StepLim{step_lim}{quic_str}"\
             .format(N=self.N, T=self.T, step=self.init_step, ls_iter=self.ls_iter, step_lim=self.step_lim, quic_str=quic_str)
 
     def compute(self, S, A0, status_f, history, test_check_f):
@@ -30,14 +29,14 @@ class pISTA(base):
 
         A_is_diag = False
         if A0 is None:
-            A_diag = self.lam * np.ones(self.N, dtype='float32')
+            A_diag = self.lam * np.ones(self.N, dtype='float64')
             A_diag = A_diag + np.diag(S)
             A_diag = 1.0 / A_diag
             A = np.diag(A_diag)
             A_diag = None
             A_is_diag = True
         else:
-            A = np.array(A0, dtype='float32')
+            A = np.array(A0, dtype='float64')
 
         if history:
             As.append(A.copy())
@@ -55,9 +54,10 @@ class pISTA(base):
             t = 0
             G = S - A_inv
             A_inv = None
+
             A_inv_A_inv = A_inv_diag @ A_inv_diag.T
-            D = -A + np_soft_threshold(A - (G / A_inv_A_inv), lam / A_inv_A_inv)
-            A, step = armijo_linesearch_F(A, S, self.lam, G, D, max_iter=self.ls_iter, step_lim=self.step_lim, init=init_step, c=quic_sigma)
+            D = -A + np_soft_threshold64(A - (G / A_inv_A_inv), lam / A_inv_A_inv)
+            A, step = armijo_linesearch_F64(A, S, self.lam, G, D, max_iter=self.ls_iter, step_lim=self.step_lim, init=init_step, c=quic_sigma)
             if step == 0: init_step = 0
             if history:
                 As.append(A.copy())
@@ -74,7 +74,7 @@ class pISTA(base):
             sign_A = np.sign(A, dtype='float16')
             mask_A = np.abs(sign_A, dtype='float16').astype('int8')
             G = S - A_inv
-            sign_soft_G = np.sign(np_soft_threshold(G, lam), dtype='float16')
+            sign_soft_G = np.sign(np_soft_threshold64(G, lam), dtype='float16')
             mask_G = np.abs(sign_soft_G).astype('int8')
             mask = np.bitwise_or(mask_A, mask_G)
             mask_G = None
@@ -118,15 +118,15 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
         return A, 0.0
     beta = step
     L = np_cholesky(A)
-    init_F_value = objective_F_cholesky(A,S,lam,L)
+    init_F_value = objective_F_cholesky64(A,S,lam,L)
     L = None
     beta_psd = None
     for _ in range(max_iter):
         if beta < step_lim: break
         try:
             beta_a = beta * a
-            beta_b = np.abs(beta * b, dtype='float32')
-            A_next = mask * np_soft_threshold(c - beta_a, beta_b)
+            beta_b = np.abs(beta * b, dtype='float64')
+            A_next = mask * np_soft_threshold64(c - beta_a, beta_b)
             beta_a = None
             beta_b = None
 
@@ -134,7 +134,7 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
             A_next *= 0.5
             L = np_cholesky(A_next)
             if beta_psd is None: beta_psd = beta
-            if objective_F_cholesky(A_next,S,lam,L) < init_F_value:
+            if objective_F_cholesky64(A_next,S,lam,L) < init_F_value:
                 return A_next, beta, np_cholesky_inv(L)
         except linalg.LinAlgError:
             pass
@@ -149,8 +149,8 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
     while True:
         try:
             beta_a = beta * a
-            beta_b = np.abs(beta * b, dtype='float32')
-            A_next = mask * np_soft_threshold(c - beta_a, beta_b)
+            beta_b = np.abs(beta * b, dtype='float64')
+            A_next = mask * np_soft_threshold64(c - beta_a, beta_b)
             beta_a = None
             beta_b = None
 
@@ -164,25 +164,25 @@ def pista_cholesky_linesearch(A, S, lam, mask, a, b, c, step, max_iter, step_lim
         #Emulate do while
         if beta < beta_eps: break
 
-    return A, 0.0
+    return A, 0.0, None
 
-def init_pISTA_parser(pISTA_pasrser):
-    pISTA_pasrser.set_defaults(algo='pISTA')
-    pISTA_pasrser.add_argument(
-        '-T', '--T', required=False, type=int, default=15, dest='T',
-        help="Number of iterations.")
-    pISTA_pasrser.add_argument(
-        '-linesearch', '--linesearch', required=False, type=int, default=15, dest='ls_iter',
-        help="Number of linesearch iterations.")
-    pISTA_pasrser.add_argument(
-        '-step_lim', '--step_limit', required=False, type=float, default=1e-4, dest='step_lim',
-        help="The smallest step size possible.")
-    pISTA_pasrser.add_argument(
-        '-st', '--step', required=False, type=float, default=1.0, dest='init_step',
-        help='init_step.')
-    pISTA_pasrser.add_argument(
-        '-64', '--64', required=False, action='store_true', default=False, dest='bit64',
-        help='use 64 bit floating point.')
-    pISTA_pasrser.add_argument(
-        '-quic', '--quic', required=False, type=float, default=None, dest='quic',
-        help='use diagonal QUIC iteration as first iteration.')
+def armijo_linesearch_F64(A, S, lam, g, Delta, init = 1, beta = 0.5, c = 0.1 , max_iter=10, step_lim=0):
+    L = np.linalg.cholesky(A)
+    init_F_val = objective_F_cholesky64(A,S,lam,L)
+    step = init
+    g_Delta_trace = np.trace(g@Delta, dtype='float64')
+    lam_term = lam*np.sum((np.abs(A+Delta, dtype='float64')-np.abs(A, dtype='float64')), dtype='float64')
+    g_Delta_trace_lam_term = g_Delta_trace+lam_term
+    for _ in range(max_iter):
+        if step < step_lim: break
+        try:
+            A_next = A+step*Delta
+            A_next = A_next + np.transpose(A_next)
+            A_next *= 0.5
+            L_next = np.linalg.cholesky(A_next)
+            if objective_F_cholesky64(A_next,S,lam,L_next) <= init_F_val + step*c*(g_Delta_trace_lam_term):
+                    return A_next, step
+        except linalg.LinAlgError:
+            pass
+        step *= beta
+    return A, 0

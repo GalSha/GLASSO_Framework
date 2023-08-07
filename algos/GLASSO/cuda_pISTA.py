@@ -5,7 +5,7 @@ from utils.common import cp_soft_threshold
 from utils.GLASSO.glasso import cuda_objective_F_cholesky
 
 class cuda_pISTA(base):
-    def __init__(self, T, N, lam, ls_iter, step_lim, init_step):
+    def __init__(self, T, N, lam, ls_iter, step_lim, init_step, quic):
         super(cuda_pISTA, self).__init__(T, N, lam)
         self.ls_iter = ls_iter
         self.step_lim = step_lim

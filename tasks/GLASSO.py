@@ -62,7 +62,7 @@ class GLASSO(base_problem):
                                          max_samples=self.max_samples,
                                          normal=self.normal, batch=tbs, constant=False, id_addition=self.id_add,
                                          sig=sig, cuda=self.cuda)
-            self.Sigs, self.Ss = generator()
+            self.Sigs, self.Ss, _ = generator()
         else:
             self.Sigs = np.load(db + "/Sigs.npy").astype('float32')
             self.Ss = np.load(db + "/Ss.npy").astype('float32')
@@ -160,7 +160,7 @@ class GLASSO(base_problem):
                                          max_samples=self.max_samples,
                                          normal=self.normal, batch=tbs, constant=False, id_addition=self.id_add,
                                          sig=sig, cuda=self.cuda)
-            self.Sigs, self.Ss = generator()
+            self.Sigs, self.Ss, _ = generator()
         else:
             self.Sigs = np.load(db + "/Sigs.npy").astype('float32')
             self.Ss = np.load(db + "/Ss.npy").astype('float32')
@@ -298,7 +298,7 @@ class GLASSO(base_problem):
         return self.gen_name
 
     def generate(self):
-        self.Sigs, self.Ss = self.generator()
+        self.Sigs, self.Ss, self.ys = self.generator()
         for i in range(len(self.Sigs)):
             self.nnz[i+1] = np.count_nonzero(self.Sigs[i])
             self.nnz[0] += self.nnz[i+1]
@@ -311,4 +311,5 @@ class GLASSO(base_problem):
     def generate_save(self, path):
         np.save(path + "/Sigs.npy", np.array(self.Sigs))
         np.save(path + "/Ss.npy", np.array(self.Ss))
+        np.save(path + "/ys.npy", np.array(self.ys))
 
